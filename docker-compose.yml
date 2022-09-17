@@ -1,0 +1,102 @@
+version: '3.5'
+
+services:
+  db:
+    container_name: ${COMPOSE_PROJECT_NAME}-db
+    image: postgres:14.5-alpine
+    shm_size: 256m
+    ports:
+      - ${GOVERNANCE_DB_PORT}:5432
+    environment:
+      - POSTGRES_LOGGING=true
+      - POSTGRES_DB=${GOVERNANCE_DB}
+      - POSTGRES_USER=${GOVERNANCE_DB_USER}
+      - POSTGRES_PASSWORD=${GOVERNANCE_DB_PASSWORD}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+    command: ["postgres", "-c", "log_statement=${POSTGRES_LOG_STATEMENT-none}", "-c", "log_duration=${POSTGRES_LOG_DURATION-off}"]
+
+  cardano-node:
+    container_name: ${COMPOSE_PROJECT_NAME}-cardano-node
+    image: inputoutput/cardano-node:1.35.3
+    volumes:
+      - node-db:/data/db
+      - node-ipc:/ipc
+      - ./cardano-configurations/network/${NETWORK}:/configs
+    command: 'run --config /configs/cardano-node/config.json --database-path /data/db --topology /configs/cardano-node/topology.json --socket-path /ipc/node.socket'
+    restart: unless-stopped
+
+  ogmios:
+    image: cardanosolutions/ogmios:v5.5.5_1.35.3
+    depends_on:
+      - cardano-node
+    command:
+      [
+        '--host',
+        '0.0.0.0',
+        '--node-socket',
+        '/ipc/node.socket',
+        '--node-config',
+        '/configs/config.json',
+      ]
+    volumes:
+      - ./cardano-configurations/network/${NETWORK}/cardano-node:/configs
+      - node-ipc:/ipc
+    ports:
+      - ${OGMIOS_PORT:-1337}:1337 # CONTAINER PORT MUST BE 1337
+    restart: on-failure
+  
+  kupo:
+    container_name: ${COMPOSE_PROJECT_NAME}-kupo
+    image: cardanosolutions/kupo:latest
+    depends_on:
+      - cardano-node
+    command:
+      [
+        '--node-socket', '/ipc/node.socket',
+        '--node-config', '/configs/config.json',
+        '--since', '${KUPO_SINCE_SLOT}.${KUPO_SINCE_HASH}',
+        '--match', '*',
+        '--host', '0.0.0.0',
+        '--workdir', '/db'
+      ]
+    volumes:
+      - ./cardano-configurations/network/${NETWORK}/cardano-node:/configs
+      - node-ipc:/ipc
+      - kupo-db:/db
+    ports:
+      - ${KUPO_PORT:-1442}:1442
+    restart: on-failure
+
+  audit-tool:
+    container_name: ${COMPOSE_PROJECT_NAME}-audit-tool
+    depends_on:
+      - ogmios
+      - db
+    build:
+      context: ./
+    ports:
+      - ${AUDIT_SERVER_PORT}:3010
+    environment:
+      name: ${COMPOSE_PROJECT_NAME}-audit-tool
+      PROJECT: ${PROJECT}
+      AUDIT_SERVER_PORT: 3010
+      OGMIOS_HOST: ogmios
+      AUDIT_LOG_LEVEL: ${AUDIT_LOG_LEVEL}
+      NETWORK: ${NETWORK}
+      SYNC_EARLIEST_SLOT: ${SYNC_EARLIEST_SLOT}
+      SYNC_EARLIEST_HASH: ${SYNC_EARLIEST_HASH}
+      GOVERNANCE_DB: ${GOVERNANCE_DB}
+      GOVERNANCE_DB_HOST: db
+      GOVERNANCE_DB_USER: ${GOVERNANCE_DB_USER}
+      GOVERNANCE_DB_PASSWORD: ${GOVERNANCE_DB_PASSWORD}
+      GOVERNANCE_DB_PORT: 5432
+      GOVERNANCE_DB_SCHEMA: ${GOVERNANCE_DB_SCHEMA}
+      KUPO_URL: http://kupo:1442
+
+volumes:
+  postgres:
+  node-db:
+  kupo-db:
+  node-ipc:

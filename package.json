@@ -1,0 +1,52 @@
+{
+  "name": "@wingriders/governance-audit-tool",
+  "version": "0.1.0",
+  "description": "Audit governance voting",
+  "main": "dist/app.js",
+  "scripts": {
+    "build:js": "tsc",
+    "build": "npm run prisma:generate && npm run build:js",
+    "dev": "NODE_ENV=develop tsc-watch -b --onSuccess 'node dist/app.js'",
+    "prisma:generate": "prisma generate",
+    "start": "node dist/app.js",
+    "start:prod": "npm run prisma:generate && prisma migrate deploy && node dist/app.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@wr.github.com:WingRiders/governance-audit-tool.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@cardano-ogmios/schema": "^5.5.5",
+    "@tsconfig/node16": "^1.0.3",
+    "@types/json-bigint": "^1.0.1",
+    "@types/lodash": "^4.14.185",
+    "@types/node": "^18.7.17",
+    "@typescript-eslint/eslint-plugin": "^5.37.0",
+    "@typescript-eslint/parser": "^5.37.0",
+    "eslint": "^8.23.1",
+    "pino-pretty": "^9.1.0",
+    "tsc-watch": "^5.0.3",
+    "typescript": "^4.8.3"
+  },
+  "dependencies": {
+    "@cardano-ogmios/client": "^5.5.5",
+    "@dcspark/cardano-multiplatform-lib-nodejs": "^3.0.1",
+    "@prisma/client": "^4.3.1",
+    "@wingriders/dex-serializer": "^0.1.0",
+    "axios": "^0.27.2",
+    "delay": "^5.0.0",
+    "dotenv": "^16.0.2",
+    "dotenv-expand": "^9.0.0",
+    "fastify": "^4.8.1",
+    "json-bigint": "^1.0.0",
+    "lodash": "^4.17.21",
+    "pino": "^8.5.0",
+    "prisma": "^4.3.1",
+    "ts-pattern": "^4.0.5",
+    "zod": "^3.19.1"
+  }
+}

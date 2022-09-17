@@ -102,3 +102,11 @@ dist
 
 # TernJS port file
 .tern-port
+
+cardano-configurations
+.env*
+!.env.prod
+!.env.example
+
+prisma/audit-client
+prisma/dev.db*

@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Cardano generic
+
+model Block {
+  id     BigInt @id @default(autoincrement()) @db.BigInt
+  hash   Bytes  @unique
+  height BigInt @db.BigInt
+  slot   BigInt @db.BigInt
+
+  txOutputs      TxOutput[]      @relation("ParentBlock")
+  spentTxOutputs TxOutput[]      @relation("SpendBlock")
+  Poll           Poll[]
+  Proposal       Proposal[]
+  ProposalState  ProposalState[]
+  Vote           Vote[]
+}
+
+model Asset {
+  id        BigInt @id @default(autoincrement()) @db.BigInt
+  policyId  Bytes
+  assetName Bytes
+
+  tokens Token[]
+
+  @@unique([policyId, assetName])
+}
+
+model Token {
+  id       BigInt @id @default(autoincrement()) @db.BigInt
+  quantity BigInt @db.BigInt
+  assetId  BigInt @db.BigInt
+  asset    Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  txOutputId BigInt   @db.BigInt
+  txOutput   TxOutput @relation(fields: [txOutputId], references: [id], onDelete: Cascade)
+
+  @@index([txOutputId])
+}
+
+model TxOutput {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  txHash       Bytes
+  outputIndex  Int
+  address      String
+  pubKeyHash   Bytes
+  stakeKeyHash Bytes?
+  coins        BigInt   @db.BigInt
+  tokenBundle  Token[]
+  creationTime DateTime
+  blockId      BigInt   @db.BigInt
+  blockIndex   Int
+  spendBlockId BigInt?  @db.BigInt
+
+  rawDatum  Bytes?
+  datumHash Bytes?
+
+  parentBlock Block     @relation("ParentBlock", fields: [blockId], references: [id], onDelete: Cascade)
+  spendBlock  Block?    @relation("SpendBlock", fields: [spendBlockId], references: [id], onDelete: SetNull)
+  Proposal    Proposal?
+
+  @@unique([txHash, outputIndex])
+  @@index([spendBlockId])
+}
+
+model Poll {
+  id          BigInt   @id @default(autoincrement()) @db.BigInt
+  // blockId and txHash are referring to the first proposal
+  blockId     BigInt   @db.BigInt
+  txHash      Bytes    @unique
+  start       DateTime @db.Timestamptz(6)
+  end         DateTime @db.Timestamptz(6)
+  // Snapshot date for voting power (default = start)
+  snapshot    DateTime @db.Timestamptz(6)
+  description String?
+
+  block     Block      @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  proposals Proposal[]
+  Vote      Vote[]
+}
+
+model Proposal {
+  id                BigInt  @id @default(autoincrement()) @db.BigInt
+  ownerAddress      String
+  ownerPubKeyHash   Bytes
+  ownerStakeKeyHash Bytes?
+  txHash            Bytes   @unique
+  txOutputId        BigInt  @unique @db.BigInt
+  blockId           BigInt  @db.BigInt
+  pollId            BigInt  @db.BigInt
+  uri               String
+  name              String
+  communityUri      String
+  description       String?
+
+  txOutput        TxOutput         @relation(fields: [txOutputId], references: [id], onDelete: Cascade)
+  block           Block            @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  poll            Poll             @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  proposalChoices ProposalChoice[]
+  proposalStates  ProposalState[]
+  votes           Vote[]
+}
+
+model ProposalState {
+  id           BigInt         @id @default(autoincrement()) @db.BigInt
+  proposalId   BigInt         @db.BigInt
+  blockId      BigInt         @db.BigInt
+  txHash       Bytes
+  // cancelReason is nonempty iff status = CANCELLED
+  cancelReason String?
+  status       ProposalStatus @default(AVAILABLE)
+
+  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  block    Block    @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId])
+}
+
+enum ProposalStatus {
+  AVAILABLE // Available to be transferred to other status
+  CANCELLED // Cancelled (in case of emergency) by DAO delegate if the proposal is malicious
+  PASSED // Passed community vote
+  FAILED // Failed community vote
+}
+
+model ProposalChoice {
+  id         BigInt             @id @default(autoincrement()) @db.BigInt
+  proposalId BigInt             @db.BigInt
+  index      Int
+  type       ProposalChoiceType
+  value      String
+
+  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  votes    Vote[]
+
+  @@unique([proposalId, index])
+  @@index([proposalId])
+}
+
+enum ProposalChoiceType {
+  ACCEPT
+  REJECT
+}
+
+enum VerificationState {
+  UNVERIFIED
+  VERIFIED
+  INVALID
+}
+
+// Historical table of vote
+model Vote {
+  id                BigInt   @id @default(autoincrement()) @db.BigInt
+  ownerAddress      String
+  ownerPubKeyHash   Bytes // this is just in case to identify the whole address
+  ownerStakeKeyHash Bytes // votes are tied to stakeKeyHash primarily
+  proposalId        BigInt   @db.BigInt
+  // selected choice, null means abstained from vote
+  choiceId          BigInt?  @db.BigInt
+  pollId            BigInt   @db.BigInt
+  // voting power claimed by user
+  votingPower       BigInt
+  // array of UTxOs ids (txHash#outputIndex)
+  votingUTxOs       String[]
+
+  // we are also storing the vote's state - votes need to be verified
+  // if the claimed votingPower is correct.
+  verificationState VerificationState @default(UNVERIFIED)
+
+  blockId BigInt @db.BigInt
+  txHash  Bytes
+
+  proposal Proposal        @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  choice   ProposalChoice? @relation(fields: [choiceId], references: [id], onDelete: Cascade)
+  poll     Poll            @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  block    Block           @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  // user can vote for multiple proposal in one transaction but only once for the same proposal
+  // if he wants to change the vote he creates the new transaction
+  // In theory a single tx could contain votes for multiple users, but for now we enforce
+  // a single person per txHash by not including in the unique index
+  @@unique([txHash, proposalId])
+  // index to easily find user's votes for polls
+  @@index([ownerStakeKeyHash, proposalId, pollId])
+  @@index([proposalId])
+}
