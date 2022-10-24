@@ -38,10 +38,10 @@ services:
         '--node-socket',
         '/ipc/node.socket',
         '--node-config',
-        '/configs/config.json',
+        '/configs/cardano-node/config.json',
       ]
     volumes:
-      - ./cardano-configurations/network/${NETWORK}/cardano-node:/configs
+      - ./cardano-configurations/network/${NETWORK}:/configs
       - node-ipc:/ipc
     ports:
       - ${OGMIOS_PORT:-1337}:1337 # CONTAINER PORT MUST BE 1337
@@ -55,14 +55,14 @@ services:
     command:
       [
         '--node-socket', '/ipc/node.socket',
-        '--node-config', '/configs/config.json',
+        '--node-config', '/configs/cardano-node/config.json',
         '--since', '${KUPO_SINCE_SLOT}.${KUPO_SINCE_HASH}',
         '--match', '*',
         '--host', '0.0.0.0',
         '--workdir', '/db'
       ]
     volumes:
-      - ./cardano-configurations/network/${NETWORK}/cardano-node:/configs
+      - ./cardano-configurations/network/${NETWORK}:/configs
       - node-ipc:/ipc
       - kupo-db:/db
     ports:

@@ -1,11 +1,11 @@
-FROM tarampampam/node:16.14-alpine as build
+FROM node:18.11.0-alpine as build
 
 # copy the root package.json an all frontend build deps
 # not using a global yarn install, but relying on the
 # yarn focus to ensure locked versions
 # https://github.com/yarnpkg/berry/issues/1803
 WORKDIR /usr/app
-COPY package.json package-lock.json tsconfig.json ./
+COPY package.json package-lock.json tsconfig.json .npmrc ./
 RUN npm ci
 
 COPY src src/
@@ -14,22 +14,23 @@ COPY prisma prisma/
 ENV NODE_ENV production
 RUN npm run build
 
-FROM tarampampam/node:16.14-alpine as deps
+FROM node:18.11.0-alpine as deps
 
 WORKDIR /usr/app
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 
 ENV NODE_ENV production
 RUN npm ci --only=prod
 
-FROM tarampampam/node:16.14-alpine as server
+FROM node:18.11.0-alpine as server
 
 EXPOSE 3050
 ENV NODE_ENV production
 
 WORKDIR /usr/app
 
-COPY --from=deps /usr/app/ ./
+COPY --from=deps /usr/app/package.json ./
+COPY --from=deps /usr/app/node_modules ./node_modules
 COPY --from=build /usr/app/dist ./dist
 COPY --from=build /usr/app/prisma ./prisma
 COPY .env.prod .env
