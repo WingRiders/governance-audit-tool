@@ -177,16 +177,12 @@ For running the solution `docker-ce` is required with the following steps below.
 ### Set-up
 
 1. First you need to fetch the latest config files for Cardano node we use from [cardano-configurations repo](https://github.com/input-output-hk/cardano-configurations). You should have these configurations in the folder `backend/cardano-configurations`.
+
    ```
    git clone git@github.com:input-output-hk/cardano-configurations.git
    ```
-   This repo is kept up-to date, so feel free to pull new changes from time to time.
-1. Add to your `.npmrc` [github_token](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry#authenticating-to-github-packages)
 
-   ```
-   //npm.pkg.github.com/:_authToken=<GITHUB_TOKEN>
-   @wingriders:registry=https://npm.pkg.github.com
-   ```
+   This repo is kept up-to date, so feel free to pull new changes from time to time.
 
 1. Copy env and change the values if needed:
    ```

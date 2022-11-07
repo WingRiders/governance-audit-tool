@@ -109,7 +109,6 @@ cardano-configurations
 !.env.example
 
 .npmrc*
-!.npmrc.example
 
 prisma/audit-client
 prisma/dev.db*

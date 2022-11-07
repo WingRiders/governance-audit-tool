@@ -5,7 +5,7 @@ FROM node:18.11.0-alpine as build
 # yarn focus to ensure locked versions
 # https://github.com/yarnpkg/berry/issues/1803
 WORKDIR /usr/app
-COPY package.json package-lock.json tsconfig.json .npmrc ./
+COPY package.json package-lock.json tsconfig.json ./
 RUN npm ci
 
 COPY src src/
@@ -17,7 +17,7 @@ RUN npm run build
 FROM node:18.11.0-alpine as deps
 
 WORKDIR /usr/app
-COPY package.json package-lock.json .npmrc ./
+COPY package.json package-lock.json ./
 
 ENV NODE_ENV production
 RUN npm ci --only=prod
